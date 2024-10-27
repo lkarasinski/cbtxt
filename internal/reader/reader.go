@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/lkarasinski/cbtxt/internal/gitignore"
 	"github.com/lkarasinski/cbtxt/internal/template"
 )
@@ -16,8 +17,9 @@ var (
 )
 
 type Reader struct {
-	tmpl        *template.Template
-	projectRoot string
+	tmpl         *template.Template
+	projectRoot  string
+	fileContents []string
 }
 
 func New() (*Reader, error) {
@@ -26,7 +28,7 @@ func New() (*Reader, error) {
 		return nil, err
 	}
 
-	return &Reader{tmpl: tmpl}, nil
+	return &Reader{tmpl: tmpl, fileContents: []string{}}, nil
 }
 
 func (r *Reader) ReadFile(path string) (string, error) {
@@ -102,13 +104,22 @@ func (r *Reader) ReadDirectory(dir string, noGitignore bool) {
 				os.Exit(1)
 			}
 
-			fmt.Println(file)
+			r.fileContents = append(r.fileContents, file)
 		}
 		return nil
 	})
 
 	if err != nil {
 		fmt.Println(fmt.Errorf("could not walk directory: %v", err))
+		os.Exit(1)
+	}
+}
+
+func (r *Reader) CopyToClipboard() {
+	err := clipboard.WriteAll(strings.Join(r.fileContents, "\n"))
+
+	if err != nil {
+		fmt.Println(fmt.Errorf("could not copy to clipboard: %v", err))
 		os.Exit(1)
 	}
 }

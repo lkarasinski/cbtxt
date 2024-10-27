@@ -50,6 +50,7 @@ func runRoot(cmd *cobra.Command, args []string) {
 	}
 
 	r.ReadDirectory(dir, noGitignore)
+	r.CopyToClipboard()
 }
 
 func Execute() error {
