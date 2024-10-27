@@ -11,11 +11,13 @@ import (
 
 type GitIgnore struct {
 	patterns []glob.Glob
+	enabled  bool
 }
 
-func New(gitignorePath string) (*GitIgnore, error) {
+func New(gitignorePath string, enabled bool) (*GitIgnore, error) {
 	gi := &GitIgnore{
 		patterns: make([]glob.Glob, 0),
+		enabled:  enabled,
 	}
 
 	// Read .gitignore file
@@ -81,6 +83,9 @@ func (gi *GitIgnore) addPattern(pattern string) {
 }
 
 func (gi *GitIgnore) ShouldIgnore(path string) bool {
+	if !gi.enabled {
+		return false
+	}
 	// Convert Windows paths to forward slashes for consistency
 	path = filepath.ToSlash(path)
 

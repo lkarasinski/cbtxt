@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/lkarasinski/cbtxt/internal/reader"
 	"github.com/spf13/cobra"
 )
@@ -26,16 +28,12 @@ func init() {
 }
 
 func runRoot(cmd *cobra.Command, args []string) {
-	r, err := reader.New()
-	if err != nil {
-		os.Exit(1)
-	}
-	projectRoot, err := r.FindProjectRoot(".")
+	r, err := reader.New(!noGitignore)
 	if err != nil {
 		os.Exit(1)
 	}
 
-	dir := projectRoot
+	dir := r.ProjectRoot
 	if len(args) > 0 {
 		dir = args[0]
 	}
@@ -45,12 +43,14 @@ func runRoot(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if noGitignore {
-		fmt.Println("Ignoring .gitignore rules")
-	}
+	fileContents := r.ReadDirectory(dir, noGitignore)
 
-	r.ReadDirectory(dir, noGitignore)
-	r.CopyToClipboard()
+	err = clipboard.WriteAll(strings.Join(fileContents, "\n"))
+
+	if err != nil {
+		fmt.Println(fmt.Errorf("could not copy to clipboard: %v", err))
+		os.Exit(1)
+	}
 }
 
 func Execute() error {

@@ -7,31 +7,50 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/atotto/clipboard"
 	"github.com/lkarasinski/cbtxt/internal/gitignore"
 	"github.com/lkarasinski/cbtxt/internal/template"
 )
 
-var (
-	gitIgnore *gitignore.GitIgnore
-)
-
 type Reader struct {
-	tmpl         *template.Template
-	projectRoot  string
-	fileContents []string
+	tmpl        *template.Template
+	ProjectRoot string
+	gitIgnore   *gitignore.GitIgnore
 }
 
-func New() (*Reader, error) {
+func New(noGitignore bool) (*Reader, error) {
 	tmpl, err := template.New()
 	if err != nil {
 		return nil, err
 	}
 
-	return &Reader{tmpl: tmpl, fileContents: []string{}}, nil
+	projectRoot, err := findProjectRoot(".")
+
+	if err != nil {
+		return nil, err
+	}
+
+	gitIgnore, err := gitignore.New(filepath.Join(projectRoot, ".gitignore"), noGitignore)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &Reader{tmpl: tmpl, ProjectRoot: projectRoot, gitIgnore: gitIgnore}, nil
 }
 
 func (r *Reader) ReadFile(path string) (string, error) {
+	if isExcludedFile(path) {
+		return "", fmt.Errorf("excluded file type: %s", path)
+	}
+
+	isBinary, err := isBinaryFile(path)
+	if err != nil {
+		return "", fmt.Errorf("check if binary: %w", err)
+	}
+	if isBinary {
+		return "", fmt.Errorf("binary file detected: %s", path)
+	}
+
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return "", fmt.Errorf("could not get absolute path %s: %v", path, err)
@@ -44,14 +63,14 @@ func (r *Reader) ReadFile(path string) (string, error) {
 	}
 
 	data := template.FileData{
-		Path:    strings.TrimPrefix(absPath, filepath.Dir(r.projectRoot)),
+		Path:    strings.TrimPrefix(absPath, filepath.Dir(r.ProjectRoot)),
 		Content: string(content),
 	}
 
 	return r.tmpl.Format(data)
 }
 
-func (r *Reader) FindProjectRoot(dir string) (string, error) {
+func findProjectRoot(dir string) (string, error) {
 	absPath, err := filepath.Abs(dir)
 	if err != nil {
 		return "", fmt.Errorf("could not get absolute path for directory %s: %v", dir, err)
@@ -65,8 +84,7 @@ func (r *Reader) FindProjectRoot(dir string) (string, error) {
 	// Check current directory for .gitignore
 	for _, file := range data {
 		if file.Name() == ".gitignore" {
-			r.projectRoot = absPath
-			return dir, nil
+			return absPath, nil
 		}
 	}
 
@@ -77,22 +95,14 @@ func (r *Reader) FindProjectRoot(dir string) (string, error) {
 	}
 
 	// Recursively check parent directory
-	return r.FindProjectRoot(parent)
+	return findProjectRoot(parent)
 }
 
-func (r *Reader) ReadDirectory(dir string, noGitignore bool) {
-	if !noGitignore {
-		var err error
-		gitIgnore, err = gitignore.New(filepath.Join(dir, ".gitignore"))
-
-		if err != nil {
-			fmt.Printf("Error loading .gitignore: %v", err)
-			return
-		}
-	}
+func (r *Reader) ReadDirectory(dir string, noGitignore bool) []string {
+	fileContents := []string{}
 
 	err := filepath.Walk(dir, func(path string, info fs.FileInfo, err error) error {
-		if gitIgnore.ShouldIgnore(path) {
+		if r.gitIgnore.ShouldIgnore(path) {
 			return nil
 		}
 
@@ -101,10 +111,9 @@ func (r *Reader) ReadDirectory(dir string, noGitignore bool) {
 
 			if err != nil {
 				fmt.Println(fmt.Errorf("could read file: %v", err))
-				os.Exit(1)
+			} else {
+				fileContents = append(fileContents, file)
 			}
-
-			r.fileContents = append(r.fileContents, file)
 		}
 		return nil
 	})
@@ -113,13 +122,6 @@ func (r *Reader) ReadDirectory(dir string, noGitignore bool) {
 		fmt.Println(fmt.Errorf("could not walk directory: %v", err))
 		os.Exit(1)
 	}
-}
 
-func (r *Reader) CopyToClipboard() {
-	err := clipboard.WriteAll(strings.Join(r.fileContents, "\n"))
-
-	if err != nil {
-		fmt.Println(fmt.Errorf("could not copy to clipboard: %v", err))
-		os.Exit(1)
-	}
+	return fileContents
 }
