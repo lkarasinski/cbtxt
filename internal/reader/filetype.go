@@ -8,18 +8,11 @@ import (
 	"strings"
 )
 
-// maxBytesToCheck is the number of bytes to check for binary content
 const maxBytesToCheck = 512
 
-// isBinaryFile checks if a file is likely to be binary
-func isBinaryFile(filepath string) (bool, error) {
-	file, err := os.Open(filepath)
-	if err != nil {
-		return false, fmt.Errorf("open file: %w", err)
-	}
+func isBinaryFile(file *os.File) (bool, error) {
 	defer file.Close()
 
-	// Read the first maxBytesToCheck bytes
 	buf := make([]byte, maxBytesToCheck)
 	n, err := file.Read(buf)
 	if err != nil && err != io.EOF {

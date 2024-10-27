@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/lkarasinski/cbtxt/internal/gitignore"
 	"github.com/lkarasinski/cbtxt/internal/template"
@@ -38,22 +37,50 @@ func New(noGitignore bool) (*Reader, error) {
 	return &Reader{tmpl: tmpl, ProjectRoot: projectRoot, gitIgnore: gitIgnore}, nil
 }
 
-func (r *Reader) ReadFile(path string) (string, error) {
-	if isExcludedFile(path) {
-		return "", fmt.Errorf("excluded file type: %s", path)
+func (r *Reader) ProcessFile(path string, content []byte) (string, error) {
+	data := template.FileData{
+		Path:    path,
+		Content: string(content),
 	}
 
-	isBinary, err := isBinaryFile(path)
+	formatted, err := r.tmpl.Format(data)
+
 	if err != nil {
-		return "", fmt.Errorf("check if binary: %w", err)
+		return "", err
+	}
+
+	return formatted, nil
+}
+
+func (r *Reader) FilterFile(path string, file *os.File) (bool, error) {
+	if isExcludedFile(path) {
+		return false, nil
+	}
+
+	isBinary, err := isBinaryFile(file)
+	if err != nil {
+		return false, fmt.Errorf("failed to check if binary: %w", err)
 	}
 	if isBinary {
-		return "", fmt.Errorf("binary file detected: %s", path)
+		return false, nil
 	}
 
-	absPath, err := filepath.Abs(path)
+	return true, nil
+}
+
+func (r *Reader) ReadFile(path string) (string, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("could not get absolute path %s: %v", path, err)
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+
+	validFile, err := r.FilterFile(path, file)
+	if err != nil {
+		return "", fmt.Errorf("failed to filter file: %w", err)
+	}
+
+	if !validFile {
+		return "", fmt.Errorf("excluded file type: %s", path)
 	}
 
 	content, err := os.ReadFile(path)
@@ -62,12 +89,7 @@ func (r *Reader) ReadFile(path string) (string, error) {
 		return "", fmt.Errorf("failed to read file: %w", err)
 	}
 
-	data := template.FileData{
-		Path:    strings.TrimPrefix(absPath, filepath.Dir(r.ProjectRoot)),
-		Content: string(content),
-	}
-
-	return r.tmpl.Format(data)
+	return r.ProcessFile(path, content)
 }
 
 func findProjectRoot(dir string) (string, error) {
