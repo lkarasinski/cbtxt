@@ -11,8 +11,7 @@ type FileData struct {
 	Content string
 }
 
-const DefaultTemplate = `
-=== {{.Path}} ===
+const DefaultTemplate = `=== {{.Path}} ===
 
 {{.Content}}
 `
