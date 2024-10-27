@@ -95,7 +95,14 @@ func (r *Reader) ReadDirectory(dir string, noGitignore bool) {
 		}
 
 		if !info.IsDir() {
-			fmt.Println(r.ReadFile(path))
+			file, err := r.ReadFile(path)
+
+			if err != nil {
+				fmt.Println(fmt.Errorf("could read file: %v", err))
+				os.Exit(1)
+			}
+
+			fmt.Println(file)
 		}
 		return nil
 	})
