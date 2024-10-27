@@ -28,7 +28,7 @@ func init() {
 }
 
 func runRoot(cmd *cobra.Command, args []string) {
-	r, err := reader.New(!noGitignore)
+	r, err := reader.New(noGitignore, ".")
 	if err != nil {
 		os.Exit(1)
 	}

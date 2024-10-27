@@ -16,19 +16,19 @@ type Reader struct {
 	gitIgnore   *gitignore.GitIgnore
 }
 
-func New(noGitignore bool) (*Reader, error) {
+func New(noGitignore bool, path string) (*Reader, error) {
 	tmpl, err := template.New()
 	if err != nil {
 		return nil, err
 	}
 
-	projectRoot, err := findProjectRoot(".")
+	projectRoot, err := findProjectRoot(path)
 
 	if err != nil {
 		return nil, err
 	}
 
-	gitIgnore, err := gitignore.New(filepath.Join(projectRoot, ".gitignore"), noGitignore)
+	gitIgnore, err := gitignore.New(filepath.Join(projectRoot, ".gitignore"), !noGitignore)
 
 	if err != nil {
 		return nil, err
@@ -64,6 +64,9 @@ func (r *Reader) FilterFile(path string, file *os.File) (bool, error) {
 	if isBinary {
 		return false, nil
 	}
+	if r.gitIgnore.ShouldIgnore(path) {
+		return false, nil
+	}
 
 	return true, nil
 }
@@ -80,7 +83,7 @@ func (r *Reader) ReadFile(path string) (string, error) {
 	}
 
 	if !validFile {
-		return "", fmt.Errorf("excluded file type: %s", path)
+		return "", nil
 	}
 
 	content, err := os.ReadFile(path)
@@ -133,7 +136,7 @@ func (r *Reader) ReadDirectory(dir string, noGitignore bool) []string {
 
 			if err != nil {
 				fmt.Println(fmt.Errorf("could read file: %v", err))
-			} else {
+			} else if file != "" {
 				fileContents = append(fileContents, file)
 			}
 		}
