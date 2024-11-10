@@ -1,4 +1,3 @@
-// internal/reader/reader_test.go
 package reader
 
 import (
