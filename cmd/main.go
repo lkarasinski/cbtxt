@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/atotto/clipboard"
 	"github.com/lkarasinski/cbtxt/internal/reader"
 	"github.com/spf13/cobra"
 )
@@ -45,12 +44,9 @@ func runRoot(cmd *cobra.Command, args []string) {
 
 	fileContents := r.ReadDirectory(dir, noGitignore)
 
-	err = clipboard.WriteAll(strings.Join(fileContents, "\n"))
+	stringContent := strings.Join(fileContents, "\n")
 
-	if err != nil {
-		fmt.Println(fmt.Errorf("could not copy to clipboard: %v", err))
-		os.Exit(1)
-	}
+	fmt.Println(stringContent)
 }
 
 func Execute() error {
